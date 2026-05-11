@@ -1,0 +1,84 @@
+{
+  "name": "claude-pet",
+  "displayName": "Claude Pet",
+  "description": "A virtual pet companion for VSCode",
+  "version": "0.1.0",
+  "publisher": "claude",
+  "engines": {
+    "vscode": "^1.88.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "claude-pet.show",
+        "title": "Show Pet"
+      },
+      {
+        "command": "claude-pet.hide",
+        "title": "Hide Pet"
+      },
+      {
+        "command": "claude-pet.feed",
+        "title": "Feed Pet"
+      },
+      {
+        "command": "claude-pet.play",
+        "title": "Play with Pet"
+      },
+      {
+        "command": "claude-pet.groom",
+        "title": "Groom Pet"
+      },
+      {
+        "command": "claude-pet.rest",
+        "title": "Rest Pet"
+      },
+      {
+        "command": "claude-pet.reset",
+        "title": "Reset Pet"
+      },
+      {
+        "command": "claude-pet.switch",
+        "title": "Switch Pet Type"
+      }
+    ],
+    "configuration": {
+      "title": "Claude Pet",
+      "properties": {
+        "claudePet.visible": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show or hide the pet"
+        },
+        "claudePet.petType": {
+          "type": "string",
+          "default": "cat",
+          "description": "Pet type (cat, dog, rabbit, bird)"
+        },
+        "claudePet.petName": {
+          "type": "string",
+          "default": "Buddy",
+          "description": "Pet name"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "vsce package",
+    "test": "node ./out/test/runTest.js"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@types/vscode": "^1.88.0",
+    "@vscode/test-electron": "^2.3.0",
+    "typescript": "^5.3.0",
+    "vsce": "^2.15.0"
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls -la \"e:/project/Claude pet\" 2>/dev/null || ls -la \"e:/project/\" 2>/dev/null || echo \"Directory not found\")",
+      "Read(//e/project/**)",
+      "Bash(npm --version)",
+      "Bash(npm install *)",
+      "Bash(npm run *)",
+      "Bash(npm list *)",
+      "Bash(pip install *)",
+      "WebFetch(domain:github.com)",
+      "Bash(gh release *)",
+      "Bash(curl -fsSL \"https://github.com/MiniMax-AI/cli/releases/latest\")",
+      "Bash(git clone *)",
+      "Bash(node --loader tsx src/main.ts --help)",
+      "Bash(node --import tsx src/main.ts configure --help)",
+      "Bash(node --import tsx src/main.ts config set --api-key \"sk-cp-uzcQviFA9G33I4O4rN9hu50QO8Km2Dd8Kztxo5sScaPUmh0rkniiNLa_AHWxdmmEyYa9qcMjrCBI8NQSSRIbPdJkAKndgf6JfA2UKm3PaIWFtadIwLg-7iU\")",
+      "Bash(node --import tsx src/main.ts config set --key \"api-key\" --value \"sk-cp-uzcQviFA9G33I4O4rN9hu50QO8Km2Dd8Kztxo5sScaPUmh0rkniiNLa_AHWxdmmEyYa9qcMjrCBI8NQSSRIbPdJkAKndgf6JfA2UKm3PaIWFtadIwLg-7iU\")",
+      "Bash(node --import tsx src/main.ts config set --key \"api_key\" --value \"sk-cp-uzcQviFA9G33I4O4rN9hu50QO8Km2Dd8Kztxo5sScaPUmh0rkniiNLa_AHWxdmmEyYa9qcMjrCBI8NQSSRIbPdJkAKndgf6JfA2UKm3PaIWFtadIwLg-7iU\")",
+      "Bash(node --import tsx src/main.ts image generate --help)",
+      "Bash(node --import tsx src/main.ts image generate --prompt \"Cute pixel art orange cat face, idle animation frame 1, simple clean background, 128x128 pixels\" --width 512 --height 512 --out \"e:/project/Claude pet/resources/sprites/cat/idle_001.png\")",
+      "Bash(node generate-sprites.js)"
+    ]
+  }
+}
