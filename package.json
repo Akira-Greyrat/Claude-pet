@@ -1,16 +1,19 @@
 {
   "name": "claude-pet",
   "displayName": "Claude Pet",
-  "description": "A virtual pet companion for VSCode",
-  "version": "0.1.0",
+  "description": "A virtual pet companion for VSCode - floats over the editor",
+  "version": "0.4.0",
   "publisher": "claude",
+  "repository": "https://github.com/Akira-Greyrat/Claude-pet",
   "engines": {
     "vscode": "^1.88.0"
   },
   "categories": [
     "Other"
   ],
-  "activationEvents": [],
+  "activationEvents": [
+    "*"
+  ],
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
@@ -21,6 +24,10 @@
       {
         "command": "claude-pet.hide",
         "title": "Hide Pet"
+      },
+      {
+        "command": "claude-pet.toggle",
+        "title": "Toggle Pet"
       },
       {
         "command": "claude-pet.feed",
@@ -54,16 +61,6 @@
           "type": "boolean",
           "default": true,
           "description": "Show or hide the pet"
-        },
-        "claudePet.petType": {
-          "type": "string",
-          "default": "cat",
-          "description": "Pet type (cat, dog, rabbit, bird)"
-        },
-        "claudePet.petName": {
-          "type": "string",
-          "default": "Buddy",
-          "description": "Pet name"
         }
       }
     }

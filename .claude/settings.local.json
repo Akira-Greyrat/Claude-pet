@@ -25,7 +25,27 @@
       "Bash(git status *)",
       "Bash(git add *)",
       "Bash(git commit *)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "Bash(code --list-extensions)",
+      "Bash(code --install-extension \"e:/project/Claude pet/claude-pet-0.2.0.vsix\")",
+      "Bash(code --install-extension \"e:/project/Claude pet/claude-pet-0.3.0.vsix\" --force)",
+      "WebSearch",
+      "Bash(gh repo *)",
+      "Bash(go version *)",
+      "Bash(pip --version)",
+      "Bash(minimax --version)",
+      "Bash(minimax-ai --version)",
+      "Bash(where python *)",
+      "Bash(ls \"C:\\\\Users\\\\Administrator\\\\AppData\\\\Roaming\\\\npm\\\\node_modules\\\\minimax-ai-cli\" 2>&1 | head -20)",
+      "Read(//c/Users/Administrator/AppData/Roaming/npm/node_modules/**)",
+      "Bash(node \"C:\\\\Users\\\\Administrator\\\\AppData\\\\Roaming\\\\npm\\\\node_modules\\\\mmx-cli\\\\dist\\\\mmx.mjs\" --version)",
+      "Bash(code --install-extension \"e:/project/Claude pet/claude-pet-0.4.0.vsix\" --force)",
+      "Bash(node \"C:\\\\Users\\\\Administrator\\\\AppData\\\\Roaming\\\\npm\\\\node_modules\\\\mmx-cli\\\\dist\\\\mmx.mjs\" auth)",
+      "Bash(node \"C:\\\\Users\\\\Administrator\\\\AppData\\\\Roaming\\\\npm\\\\node_modules\\\\mmx-cli\\\\dist\\\\mmx.mjs\" auth login --help)",
+      "Bash(node \"C:\\\\Users\\\\Administrator\\\\AppData\\\\Roaming\\\\npm\\\\node_modules\\\\mmx-cli\\\\dist\\\\mmx.mjs\" auth login --method api-key --api-key \"sk-cp-uzcQviFA9G33I4O4rN9hu50QO8Km2Dd8Kztxo5sScaPUmh0rkniiNLa_AHWxdmmEyYa9qcMjrCBI8NQSSRIbPdJkAKndgf6JfA2UKm3PaIWFtadIwLg-7iU\")",
+      "Bash(node \"C:\\\\Users\\\\Administrator\\\\AppData\\\\Roaming\\\\npm\\\\node_modules\\\\mmx-cli\\\\dist\\\\mmx.mjs\" --help)",
+      "Bash(node \"C:\\\\Users\\\\Administrator\\\\AppData\\\\Roaming\\\\npm\\\\node_modules\\\\mmx-cli\\\\dist\\\\mmx.mjs\" image generate --help)",
+      "Bash(node \"C:\\\\Users\\\\Administrator\\\\AppData\\\\Roaming\\\\npm\\\\node_modules\\\\mmx-cli\\\\dist\\\\mmx.mjs\" image generate --prompt \"A cute kitten, fluffy fur, big bright eyes, soft pastel colors, adorable pose\" --aspect-ratio 1:1 --out \"e:\\\\project\\\\Claude pet\\\\kitten.png\")"
     ]
   }
 }

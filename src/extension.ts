@@ -7,6 +7,7 @@ import { PetConfig, ActionCommand } from './types';
 let petEngine: PetEngine;
 let storage: Storage;
 let currentConfig: PetConfig;
+let statusBarItem: vscode.StatusBarItem;
 let webviewPanel: vscode.WebviewPanel | null = null;
 
 export function activate(context: vscode.ExtensionContext) {
@@ -14,9 +15,18 @@ export function activate(context: vscode.ExtensionContext) {
   currentConfig = storage.loadConfig();
   petEngine = new PetEngine(currentConfig.petData);
 
+  // Create status bar item
+  statusBarItem = vscode.window.createStatusBarItem('claude-pet', vscode.StatusBarAlignment.Left, 0);
+  statusBarItem.text = '🐱';
+  statusBarItem.tooltip = 'Claude Pet';
+  statusBarItem.command = 'claude-pet.toggle';
+  statusBarItem.show();
+
+  // Register commands
   const commands = [
     { name: 'claude-pet.show', handler: showPet },
     { name: 'claude-pet.hide', handler: hidePet },
+    { name: 'claude-pet.toggle', handler: togglePet },
     { name: 'claude-pet.feed', handler: () => executeAction('feed') },
     { name: 'claude-pet.play', handler: () => executeAction('play') },
     { name: 'claude-pet.groom', handler: () => executeAction('groom') },
@@ -45,7 +55,7 @@ function getWebviewContent(): string {
 
 async function showPet() {
   if (webviewPanel) {
-    webviewPanel.reveal(vscode.ViewColumn.One, true);
+    webviewPanel.reveal(vscode.ViewColumn.Nine, true);
     return;
   }
 
@@ -55,7 +65,7 @@ async function showPet() {
     'claudePet',
     'Claude Pet',
     {
-      viewColumn: vscode.ViewColumn.One,
+      viewColumn: vscode.ViewColumn.Nine,
       preserveFocus: true
     },
     {
@@ -89,6 +99,9 @@ async function showPet() {
   webviewPanel.onDidDispose(() => {
     webviewPanel = null;
   });
+
+  currentConfig.visible = true;
+  storage.saveVisible(true);
 }
 
 function hidePet() {
@@ -96,10 +109,19 @@ function hidePet() {
     webviewPanel.dispose();
     webviewPanel = null;
   }
+  currentConfig.visible = false;
   storage.saveVisible(false);
 }
 
-async function switchPet() {
+function togglePet() {
+  if (currentConfig.visible) {
+    hidePet();
+  } else {
+    showPet();
+  }
+}
+
+function switchPet() {
   const petTypes = ['cat', 'dog', 'rabbit', 'bird'];
   const currentIndex = petTypes.indexOf(currentConfig.petData.type);
   const nextIndex = (currentIndex + 1) % petTypes.length;
@@ -115,6 +137,9 @@ async function switchPet() {
       payload: nextType
     });
   }
+
+  const icons: Record<string, string> = { cat: '🐱', dog: '🐶', rabbit: '🐰', bird: '🐦' };
+  statusBarItem.text = icons[nextType] || '🐱';
 
   vscode.window.showInformationMessage(`Switched to ${nextType}!`);
 }
@@ -159,4 +184,5 @@ export function deactivate() {
   if (webviewPanel) {
     webviewPanel.dispose();
   }
+  statusBarItem?.dispose();
 }

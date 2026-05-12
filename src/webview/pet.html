@@ -5,52 +5,43 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Claude Pet</title>
   <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-
-    body {
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      width: 100%;
+      height: 100%;
       overflow: hidden;
       background: transparent;
     }
-
     #pet-container {
       position: fixed;
-      width: 200px;
-      height: 200px;
-      left: 100px;
-      top: 100px;
+      width: 80px;
+      height: 80px;
+      left: 50%;
+      bottom: 60px;
       cursor: move;
       user-select: none;
+      z-index: 99999;
     }
-
-    #pet-canvas {
+    #pet-sprite {
       width: 100%;
       height: 100%;
-      display: block;
-      border-radius: 8px;
+      cursor: pointer;
+      image-rendering: pixelated;
+      transition: transform 0.1s;
     }
-
-    #pet-container:hover {
-      outline: 2px dashed rgba(100, 100, 100, 0.5);
-    }
-
+    #pet-sprite:hover { transform: scale(1.1); }
     .resize-handle {
       position: absolute;
-      width: 16px;
-      height: 16px;
+      width: 12px;
+      height: 12px;
       background: rgba(255, 255, 255, 0.8);
       border: 1px solid rgba(100, 100, 100, 0.5);
       border-radius: 2px;
     }
-
-    .resize-handle.se { bottom: -8px; right: -8px; cursor: se-resize; }
-    .resize-handle.sw { bottom: -8px; left: -8px; cursor: sw-resize; }
-    .resize-handle.ne { top: -8px; right: -8px; cursor: ne-resize; }
-    .resize-handle.nw { top: -8px; left: -8px; cursor: nw-resize; }
-
+    .resize-handle.se { bottom: -6px; right: -6px; cursor: se-resize; }
+    .resize-handle.sw { bottom: -6px; left: -6px; cursor: sw-resize; }
+    .resize-handle.ne { top: -6px; right: -6px; cursor: ne-resize; }
+    .resize-handle.nw { top: -6px; left: -6px; cursor: nw-resize; }
     #loading {
       position: fixed;
       top: 50%;
@@ -64,7 +55,7 @@
 <body>
   <div id="loading">Loading...</div>
   <div id="pet-container" style="display: none;">
-    <canvas id="pet-canvas" width="200" height="200"></canvas>
+    <img id="pet-sprite" src="" alt="Pet" />
     <div class="resize-handle se" data-corner="se"></div>
     <div class="resize-handle sw" data-corner="sw"></div>
     <div class="resize-handle ne" data-corner="ne"></div>
@@ -81,10 +72,14 @@
       var frames = {};
       var currentFrame = 0;
       var animationId = null;
-      var lastFrameTime = 0;
       var isLoading = false;
-      var loadFailed = false;
-      var pendingState = null;
+      var isWalking = false;
+      var walkDirection = 1;
+      var positionX = 50;
+      var walkSpeed = 0.5;
+      var walkInterval = null;
+      var containerWidth = 80;
+      var containerHeight = 80;
       var SPRITES_BASE_URL = '{SPRITES_BASE_URL}';
       var FPS = 8;
 
@@ -101,44 +96,23 @@
         window.addEventListener('message', function(event) {
           var message = event.data;
           switch (message.type) {
-            case 'init':
-              config = message.payload;
-              initPet(config);
-              break;
-            case 'action':
-              executeAction(message.payload);
-              break;
-            case 'stateUpdate':
-              setState(message.payload);
-              break;
-            case 'switchPet':
-              switchPet(message.payload);
-              break;
-            case 'move':
-              updatePosition(message.payload.x, message.payload.y);
-              break;
-            case 'resize':
-              updateSize(message.payload.width, message.payload.height);
-              break;
+            case 'init': config = message.payload; initPet(config); break;
+            case 'action': executeAction(message.payload); break;
+            case 'stateUpdate': setState(message.payload); break;
+            case 'switchPet': switchPet(message.payload); break;
           }
         });
+
+        setupDragResize();
+        startAutoWalk();
       }
 
       function initPet(cfg) {
         config = cfg;
         currentPetType = cfg.petData ? cfg.petData.type : 'cat';
 
-        var container = document.getElementById('pet-container');
         var loading = document.getElementById('loading');
-
-        container.style.width = cfg.size.width + 'px';
-        container.style.height = cfg.size.height + 'px';
-        container.style.left = cfg.position.x + 'px';
-        container.style.top = cfg.position.y + 'px';
-
-        var canvas = document.getElementById('pet-canvas');
-        canvas.width = cfg.size.width;
-        canvas.height = cfg.size.height;
+        var container = document.getElementById('pet-container');
 
         loading.style.display = 'none';
         container.style.display = 'block';
@@ -153,13 +127,10 @@
       function loadSprites(petType) {
         if (isLoading) return;
         isLoading = true;
-        loadFailed = false;
-
         var states = ['idle', 'happy', 'sad', 'eating', 'sleeping', 'playing'];
         var frameCount = 4;
         var totalFrames = states.length * frameCount;
         var loadedCount = 0;
-
         frames = {};
 
         states.forEach(function(state) {
@@ -167,24 +138,12 @@
           for (var i = 1; i <= frameCount; i++) {
             var frameName = state + '_' + String(i).padStart(3, '0') + '.png';
             var img = new Image();
-
-            img.onload = (function(state, img) {
-              return function() {
-                frames[state].push(img);
-                loadedCount++;
-                checkLoadComplete(loadedCount, totalFrames);
-              };
+            img.onload = (function(s, img) {
+              return function() { frames[s].push(img); loadedCount++; checkLoadComplete(loadedCount, totalFrames); };
             })(state, img);
-
-            img.onerror = (function(state, img) {
-              return function() {
-                createPlaceholderFrame(img, state);
-                frames[state].push(img);
-                loadedCount++;
-                checkLoadComplete(loadedCount, totalFrames);
-              };
+            img.onerror = (function(s, img) {
+              return function() { createPlaceholderFrame(img, s); frames[s].push(img); loadedCount++; checkLoadComplete(loadedCount, totalFrames); };
             })(state, img);
-
             img.src = getSpriteUrl(petType, state, frameName);
           }
         });
@@ -195,8 +154,7 @@
         canvas.width = 256;
         canvas.height = 256;
         var ctx = canvas.getContext('2d');
-        var color = STATE_COLORS[state] || STATE_COLORS.idle;
-        ctx.fillStyle = color;
+        ctx.fillStyle = STATE_COLORS[state] || STATE_COLORS.idle;
         ctx.fillRect(0, 0, 256, 256);
         ctx.fillStyle = '#ffffff';
         ctx.font = '24px Arial';
@@ -217,63 +175,103 @@
       function setState(state) {
         currentState = state;
         currentFrame = 0;
-        draw();
-      }
 
-      function draw() {
-        var canvas = document.getElementById('pet-canvas');
-        var ctx = canvas.getContext('2d');
-
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-        if (frames[currentState] && frames[currentState][currentFrame]) {
-          var img = frames[currentState][currentFrame];
-          if (img && img.complete && img.naturalWidth > 0) {
-            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-          } else {
-            drawPlaceholder(ctx, currentState);
-          }
+        if (state === 'playing' || state === 'eating') {
+          stopWalk();
+        } else if (state === 'sleeping') {
+          stopWalk();
         } else {
-          drawPlaceholder(ctx, currentState);
+          if (!isWalking) startWalk();
         }
       }
 
-      function drawPlaceholder(ctx, state) {
-        var canvas = document.getElementById('pet-canvas');
-        var color = STATE_COLORS[state] || STATE_COLORS.idle;
-        ctx.fillStyle = color;
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      function draw() {
+        var sprite = document.getElementById('pet-sprite');
+        if (frames[currentState] && frames[currentState][currentFrame]) {
+          var img = frames[currentState][currentFrame];
+          if (img && img.complete && img.naturalWidth > 0) {
+            sprite.src = img.src;
+          } else {
+            sprite.src = getPlaceholderDataUrl(currentState);
+          }
+        } else {
+          sprite.src = getPlaceholderDataUrl(currentState);
+        }
+      }
+
+      function getPlaceholderDataUrl(state) {
+        var canvas = document.createElement('canvas');
+        canvas.width = 256;
+        canvas.height = 256;
+        var ctx = canvas.getContext('2d');
+        ctx.fillStyle = STATE_COLORS[state] || STATE_COLORS.idle;
+        ctx.fillRect(0, 0, 256, 256);
         ctx.fillStyle = '#ffffff';
-        ctx.font = '20px Arial';
+        ctx.font = '24px Arial';
         ctx.textAlign = 'center';
-        ctx.fillText(state, canvas.width / 2, canvas.height / 2);
+        ctx.fillText(state, 128, 138);
+        return canvas.toDataURL();
       }
 
       function startAnimation() {
         if (animationId) return;
-        lastFrameTime = 0;
-        animate();
+        var lastFrameTime = 0;
+        function animate(timestamp) {
+          var interval = 1000 / FPS;
+          if (!lastFrameTime) lastFrameTime = timestamp;
+          if (timestamp - lastFrameTime >= interval) {
+            currentFrame = (currentFrame + 1) % 4;
+            draw();
+            lastFrameTime = timestamp;
+          }
+          animationId = requestAnimationFrame(animate);
+        }
+        animationId = requestAnimationFrame(animate);
       }
 
       function stopAnimation() {
-        if (animationId) {
-          cancelAnimationFrame(animationId);
-          animationId = null;
-        }
+        if (animationId) { cancelAnimationFrame(animationId); animationId = null; }
       }
 
-      function animate(timestamp) {
-        var interval = 1000 / FPS;
+      function startWalk() {
+        if (walkInterval) return;
+        isWalking = true;
+        walkInterval = setInterval(function() {
+          positionX += walkSpeed * walkDirection;
 
-        if (!lastFrameTime) lastFrameTime = timestamp;
+          if (positionX >= 85) {
+            positionX = 85;
+            walkDirection = -1;
+            flipSprite();
+          } else if (positionX <= 15) {
+            positionX = 15;
+            walkDirection = 1;
+            flipSprite();
+          }
 
-        if (timestamp - lastFrameTime >= interval) {
-          currentFrame = (currentFrame + 1) % 4;
-          draw();
-          lastFrameTime = timestamp;
+          updatePosition();
+        }, 50);
+      }
+
+      function stopWalk() {
+        if (walkInterval) {
+          clearInterval(walkInterval);
+          walkInterval = null;
         }
+        isWalking = false;
+      }
 
-        animationId = requestAnimationFrame(animate);
+      function flipSprite() {
+        var sprite = document.getElementById('pet-sprite');
+        sprite.style.transform = walkDirection === 1 ? 'scaleX(1)' : 'scaleX(-1)';
+      }
+
+      function updatePosition() {
+        var sprite = document.getElementById('pet-sprite');
+        sprite.style.position = 'absolute';
+        sprite.style.left = positionX + '%';
+        sprite.style.bottom = '10px';
+        sprite.style.transform = walkDirection === 1 ? 'scaleX(1)' : 'scaleX(-1)';
       }
 
       function switchPet(petType) {
@@ -282,6 +280,8 @@
         isLoading = false;
         loadSprites(petType);
       }
+
+      function executeAction(action) {
         var stateMap = {
           feed: 'eating',
           play: 'playing',
@@ -292,31 +292,12 @@
         if (newState) {
           setState(newState);
           setTimeout(function() {
-            if (currentState === newState) {
-              setState('idle');
-            }
+            if (currentState === newState) setState('idle');
           }, 2000);
         }
       }
 
-      function updatePosition(x, y) {
-        var container = document.getElementById('pet-container');
-        container.style.left = x + 'px';
-        container.style.top = y + 'px';
-      }
-
-      function updateSize(width, height) {
-        var container = document.getElementById('pet-container');
-        var canvas = document.getElementById('pet-canvas');
-        container.style.width = width + 'px';
-        container.style.height = height + 'px';
-        canvas.width = width;
-        canvas.height = height;
-        draw();
-      }
-
-      // Drag and resize
-      (function() {
+      function setupDragResize() {
         var container = document.getElementById('pet-container');
         var isDragging = false;
         var startX, startY;
@@ -330,8 +311,12 @@
 
         document.addEventListener('mousemove', function(e) {
           if (!isDragging) return;
-          container.style.left = (e.clientX - startX) + 'px';
-          container.style.top = (e.clientY - startY) + 'px';
+          var x = e.clientX - startX;
+          var y = e.clientY - startY;
+          container.style.left = x + 'px';
+          container.style.top = y + 'px';
+          container.style.right = 'auto';
+          container.style.bottom = 'auto';
         });
 
         document.addEventListener('mouseup', function() {
@@ -339,16 +324,12 @@
             isDragging = false;
             vscode.postMessage({
               type: 'move',
-              payload: {
-                x: parseInt(container.style.left),
-                y: parseInt(container.style.top)
-              }
+              payload: { x: container.offsetLeft, y: container.offsetTop }
             });
           }
         });
 
-        var handles = document.querySelectorAll('.resize-handle');
-        handles.forEach(function(handle) {
+        document.querySelectorAll('.resize-handle').forEach(function(handle) {
           handle.addEventListener('mousedown', function(e) {
             e.stopPropagation();
             var corner = handle.getAttribute('data-corner');
@@ -362,16 +343,16 @@
               var dy = e.clientY - startMouseY;
 
               if (corner.includes('e')) {
-                container.style.width = Math.max(100, startWidth + dx) + 'px';
+                container.style.width = Math.max(50, startWidth + dx) + 'px';
               }
               if (corner.includes('w')) {
-                container.style.width = Math.max(100, startWidth - dx) + 'px';
+                container.style.width = Math.max(50, startWidth - dx) + 'px';
               }
               if (corner.includes('s')) {
-                container.style.height = Math.max(100, startHeight + dy) + 'px';
+                container.style.height = Math.max(50, startHeight + dy) + 'px';
               }
               if (corner.includes('n')) {
-                container.style.height = Math.max(100, startHeight - dy) + 'px';
+                container.style.height = Math.max(50, startHeight - dy) + 'px';
               }
             }
 
@@ -380,15 +361,8 @@
               document.removeEventListener('mouseup', onMouseUp);
               vscode.postMessage({
                 type: 'resize',
-                payload: {
-                  width: container.offsetWidth,
-                  height: container.offsetHeight
-                }
+                payload: { width: container.offsetWidth, height: container.offsetHeight }
               });
-              var canvas = document.getElementById('pet-canvas');
-              canvas.width = container.offsetWidth;
-              canvas.height = container.offsetHeight;
-              draw();
             }
 
             document.addEventListener('mousemove', onMouseMove);
@@ -396,10 +370,12 @@
           });
         });
 
-        container.addEventListener('click', function() {
-          executeAction('play');
+        container.addEventListener('click', function(e) {
+          if (!e.target.classList.contains('resize-handle')) {
+            executeAction('play');
+          }
         });
-      })();
+      }
 
       init();
     })();

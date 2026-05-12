@@ -1,0 +1,11 @@
+.git/
+.gitignore
+.vscode/
+.claude/
+node_modules/
+docs/
+*.log
+.DS_Store
+tsconfig.json
+*.ts
+!src/**/*.ts
