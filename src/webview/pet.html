@@ -7,8 +7,8 @@
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body {
-      width: 100%;
-      height: 100%;
+      width: 100vw;
+      height: 100vh;
       overflow: hidden;
       background: transparent;
     }
@@ -16,28 +16,32 @@
       position: fixed;
       width: 80px;
       height: 80px;
-      left: 50%;
-      bottom: 60px;
+      left: 40%;
+      top: 60%;
       cursor: move;
       user-select: none;
       z-index: 99999;
+      transition: none;
     }
     #pet-sprite {
       width: 100%;
       height: 100%;
       cursor: pointer;
       image-rendering: pixelated;
-      transition: transform 0.1s;
+      transition: transform 0.15s;
     }
-    #pet-sprite:hover { transform: scale(1.1); }
+    #pet-sprite:hover { transform: scale(1.15); }
     .resize-handle {
       position: absolute;
       width: 12px;
       height: 12px;
-      background: rgba(255, 255, 255, 0.8);
-      border: 1px solid rgba(100, 100, 100, 0.5);
+      background: rgba(255, 255, 255, 0.6);
+      border: 1px solid rgba(100, 100, 100, 0.3);
       border-radius: 2px;
+      opacity: 0;
+      transition: opacity 0.2s;
     }
+    #pet-container:hover .resize-handle { opacity: 1; }
     .resize-handle.se { bottom: -6px; right: -6px; cursor: se-resize; }
     .resize-handle.sw { bottom: -6px; left: -6px; cursor: sw-resize; }
     .resize-handle.ne { top: -6px; right: -6px; cursor: ne-resize; }
@@ -49,13 +53,14 @@
       transform: translate(-50%, -50%);
       color: #666;
       font-family: sans-serif;
+      font-size: 14px;
     }
   </style>
 </head>
 <body>
   <div id="loading">Loading...</div>
   <div id="pet-container" style="display: none;">
-    <img id="pet-sprite" src="" alt="Pet" />
+    <img id="pet-sprite" src="" alt="Pet" draggable="false" />
     <div class="resize-handle se" data-corner="se"></div>
     <div class="resize-handle sw" data-corner="sw"></div>
     <div class="resize-handle ne" data-corner="ne"></div>
@@ -66,6 +71,7 @@
     (function() {
       'use strict';
 
+      // -- State --
       var currentState = 'idle';
       var currentPetType = 'cat';
       var config = null;
@@ -73,18 +79,29 @@
       var currentFrame = 0;
       var animationId = null;
       var isLoading = false;
-      var isWalking = false;
-      var walkDirection = 1;
-      var positionX = 50;
-      var walkSpeed = 0.5;
-      var walkInterval = null;
-      var containerWidth = 80;
-      var containerHeight = 80;
+
+      // -- Free movement --
+      var petX = 40;        // percent
+      var petY = 60;        // percent
+      var speedX = 0.08;    // percent per tick
+      var speedY = 0.06;    // percent per tick
+      var moveInterval = null;
+      var isMoving = false;
+      var faceRight = true;
+
+      // -- Viewport bounds (percent) --
+      var MIN_X = 2;
+      var MAX_X = 88;
+      var MIN_Y = 5;
+      var MAX_Y = 85;
+
+      // -- Random direction timer --
+      var randomTimer = null;
       var SPRITES_BASE_URL = '{SPRITES_BASE_URL}';
       var FPS = 8;
 
       var STATE_COLORS = {
-        idle: '#888888',
+        idle: '#aaa',
         happy: '#FFD700',
         sad: '#4169E1',
         eating: '#FF6347',
@@ -92,34 +109,32 @@
         playing: '#32CD32'
       };
 
+      // ===== Init =====
       function init() {
         window.addEventListener('message', function(event) {
-          var message = event.data;
-          switch (message.type) {
-            case 'init': config = message.payload; initPet(config); break;
-            case 'action': executeAction(message.payload); break;
-            case 'stateUpdate': setState(message.payload); break;
-            case 'switchPet': switchPet(message.payload); break;
+          var msg = event.data;
+          switch (msg.type) {
+            case 'init': config = msg.payload; initPet(config); break;
+            case 'action': executeAction(msg.payload); break;
+            case 'stateUpdate': setState(msg.payload); break;
+            case 'switchPet': switchPet(msg.payload); break;
           }
         });
 
         setupDragResize();
-        startAutoWalk();
       }
 
       function initPet(cfg) {
         config = cfg;
         currentPetType = cfg.petData ? cfg.petData.type : 'cat';
 
-        var loading = document.getElementById('loading');
-        var container = document.getElementById('pet-container');
-
-        loading.style.display = 'none';
-        container.style.display = 'block';
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('pet-container').style.display = 'block';
 
         loadSprites(currentPetType);
       }
 
+      // ===== Sprites =====
       function getSpriteUrl(petType, state, frameName) {
         return SPRITES_BASE_URL + '/' + petType + '/' + state + '/' + frameName;
       }
@@ -138,32 +153,27 @@
           for (var i = 1; i <= frameCount; i++) {
             var frameName = state + '_' + String(i).padStart(3, '0') + '.png';
             var img = new Image();
-            img.onload = (function(s, img) {
-              return function() { frames[s].push(img); loadedCount++; checkLoadComplete(loadedCount, totalFrames); };
-            })(state, img);
-            img.onerror = (function(s, img) {
-              return function() { createPlaceholderFrame(img, s); frames[s].push(img); loadedCount++; checkLoadComplete(loadedCount, totalFrames); };
-            })(state, img);
+            img.onload = (function(s, img) { return function() { frames[s].push(img); loadedCount++; checkComplete(loadedCount, totalFrames); }; })(state, img);
+            img.onerror = (function(s, img) { return function() { createPlaceholder(img, s); frames[s].push(img); loadedCount++; checkComplete(loadedCount, totalFrames); }; })(state, img);
             img.src = getSpriteUrl(petType, state, frameName);
           }
         });
       }
 
-      function createPlaceholderFrame(img, state) {
-        var canvas = document.createElement('canvas');
-        canvas.width = 256;
-        canvas.height = 256;
-        var ctx = canvas.getContext('2d');
+      function createPlaceholder(img, state) {
+        var c = document.createElement('canvas');
+        c.width = 256; c.height = 256;
+        var ctx = c.getContext('2d');
         ctx.fillStyle = STATE_COLORS[state] || STATE_COLORS.idle;
         ctx.fillRect(0, 0, 256, 256);
-        ctx.fillStyle = '#ffffff';
+        ctx.fillStyle = '#fff';
         ctx.font = '24px Arial';
         ctx.textAlign = 'center';
         ctx.fillText(state, 128, 138);
-        img.src = canvas.toDataURL();
+        img.src = c.toDataURL();
       }
 
-      function checkLoadComplete(loaded, total) {
+      function checkComplete(loaded, total) {
         if (loaded >= total) {
           isLoading = false;
           setState('idle');
@@ -172,16 +182,14 @@
         }
       }
 
+      // ===== Animation =====
       function setState(state) {
         currentState = state;
         currentFrame = 0;
-
-        if (state === 'playing' || state === 'eating') {
-          stopWalk();
-        } else if (state === 'sleeping') {
-          stopWalk();
-        } else {
-          if (!isWalking) startWalk();
+        if (state === 'sleeping') {
+          stopMoving();
+        } else if (!isMoving) {
+          startMoving();
         }
       }
 
@@ -189,40 +197,35 @@
         var sprite = document.getElementById('pet-sprite');
         if (frames[currentState] && frames[currentState][currentFrame]) {
           var img = frames[currentState][currentFrame];
-          if (img && img.complete && img.naturalWidth > 0) {
-            sprite.src = img.src;
-          } else {
-            sprite.src = getPlaceholderDataUrl(currentState);
-          }
+          sprite.src = (img && img.complete && img.naturalWidth > 0) ? img.src : placeholderUrl(currentState);
         } else {
-          sprite.src = getPlaceholderDataUrl(currentState);
+          sprite.src = placeholderUrl(currentState);
         }
       }
 
-      function getPlaceholderDataUrl(state) {
-        var canvas = document.createElement('canvas');
-        canvas.width = 256;
-        canvas.height = 256;
-        var ctx = canvas.getContext('2d');
+      function placeholderUrl(state) {
+        var c = document.createElement('canvas');
+        c.width = 256; c.height = 256;
+        var ctx = c.getContext('2d');
         ctx.fillStyle = STATE_COLORS[state] || STATE_COLORS.idle;
         ctx.fillRect(0, 0, 256, 256);
-        ctx.fillStyle = '#ffffff';
+        ctx.fillStyle = '#fff';
         ctx.font = '24px Arial';
         ctx.textAlign = 'center';
         ctx.fillText(state, 128, 138);
-        return canvas.toDataURL();
+        return c.toDataURL();
       }
 
       function startAnimation() {
         if (animationId) return;
         var lastFrameTime = 0;
-        function animate(timestamp) {
+        function animate(t) {
           var interval = 1000 / FPS;
-          if (!lastFrameTime) lastFrameTime = timestamp;
-          if (timestamp - lastFrameTime >= interval) {
+          if (!lastFrameTime) lastFrameTime = t;
+          if (t - lastFrameTime >= interval) {
             currentFrame = (currentFrame + 1) % 4;
             draw();
-            lastFrameTime = timestamp;
+            lastFrameTime = t;
           }
           animationId = requestAnimationFrame(animate);
         }
@@ -233,47 +236,74 @@
         if (animationId) { cancelAnimationFrame(animationId); animationId = null; }
       }
 
-      function startWalk() {
-        if (walkInterval) return;
-        isWalking = true;
-        walkInterval = setInterval(function() {
-          positionX += walkSpeed * walkDirection;
-
-          if (positionX >= 85) {
-            positionX = 85;
-            walkDirection = -1;
-            flipSprite();
-          } else if (positionX <= 15) {
-            positionX = 15;
-            walkDirection = 1;
-            flipSprite();
-          }
-
-          updatePosition();
-        }, 50);
+      // ===== Free Movement =====
+      function startMoving() {
+        if (moveInterval) return;
+        isMoving = true;
+        // Random initial direction
+        speedX = (Math.random() - 0.5) * 0.16;
+        speedY = (Math.random() - 0.5) * 0.14;
+        faceRight = speedX >= 0;
+        moveInterval = setInterval(moveStep, 40);
+        // Random direction change
+        scheduleRandomTurn();
       }
 
-      function stopWalk() {
-        if (walkInterval) {
-          clearInterval(walkInterval);
-          walkInterval = null;
-        }
-        isWalking = false;
+      function stopMoving() {
+        if (moveInterval) { clearInterval(moveInterval); moveInterval = null; }
+        if (randomTimer) { clearTimeout(randomTimer); randomTimer = null; }
+        isMoving = false;
       }
 
-      function flipSprite() {
-        var sprite = document.getElementById('pet-sprite');
-        sprite.style.transform = walkDirection === 1 ? 'scaleX(1)' : 'scaleX(-1)';
+      function moveStep() {
+        // Update position
+        petX += speedX;
+        petY += speedY;
+
+        // Bounce off edges
+        if (petX >= MAX_X) { petX = MAX_X; speedX = -Math.abs(speedX); faceRight = false; randomizeSpeed(); }
+        if (petX <= MIN_X) { petX = MIN_X; speedX = Math.abs(speedX); faceRight = true; randomizeSpeed(); }
+        if (petY >= MAX_Y) { petY = MAX_Y; speedY = -Math.abs(speedY); randomizeSpeed(); }
+        if (petY <= MIN_Y) { petY = MIN_Y; speedY = Math.abs(speedY); randomizeSpeed(); }
+
+        // Clamp
+        petX = Math.max(MIN_X, Math.min(MAX_X, petX));
+        petY = Math.max(MIN_Y, Math.min(MAX_Y, petY));
+
+        applyPosition();
       }
 
-      function updatePosition() {
+      function randomizeSpeed() {
+        speedX += (Math.random() - 0.5) * 0.04;
+        speedY += (Math.random() - 0.5) * 0.04;
+        // Clamp speed
+        var maxSpeed = 0.25;
+        speedX = Math.max(-maxSpeed, Math.min(maxSpeed, speedX));
+        speedY = Math.max(-maxSpeed, Math.min(maxSpeed, speedY));
+        // Update facing
+        if (Math.abs(speedX) > 0.01) faceRight = speedX > 0;
+      }
+
+      function scheduleRandomTurn() {
+        if (randomTimer) clearTimeout(randomTimer);
+        var delay = 2000 + Math.random() * 5000;
+        randomTimer = setTimeout(function() {
+          randomizeSpeed();
+          scheduleRandomTurn();
+        }, delay);
+      }
+
+      function applyPosition() {
         var sprite = document.getElementById('pet-sprite');
         sprite.style.position = 'absolute';
-        sprite.style.left = positionX + '%';
-        sprite.style.bottom = '10px';
-        sprite.style.transform = walkDirection === 1 ? 'scaleX(1)' : 'scaleX(-1)';
+        sprite.style.left = petX + '%';
+        sprite.style.top = petY + '%';
+        sprite.style.right = 'auto';
+        sprite.style.bottom = 'auto';
+        sprite.style.transform = faceRight ? 'scaleX(1)' : 'scaleX(-1)';
       }
 
+      // ===== Switch Pet =====
       function switchPet(petType) {
         currentPetType = petType;
         stopAnimation();
@@ -281,13 +311,9 @@
         loadSprites(petType);
       }
 
+      // ===== Actions =====
       function executeAction(action) {
-        var stateMap = {
-          feed: 'eating',
-          play: 'playing',
-          groom: 'happy',
-          rest: 'sleeping'
-        };
+        var stateMap = { feed: 'eating', play: 'playing', groom: 'happy', rest: 'sleeping' };
         var newState = stateMap[action];
         if (newState) {
           setState(newState);
@@ -297,6 +323,7 @@
         }
       }
 
+      // ===== Drag & Resize =====
       function setupDragResize() {
         var container = document.getElementById('pet-container');
         var isDragging = false;
@@ -311,10 +338,8 @@
 
         document.addEventListener('mousemove', function(e) {
           if (!isDragging) return;
-          var x = e.clientX - startX;
-          var y = e.clientY - startY;
-          container.style.left = x + 'px';
-          container.style.top = y + 'px';
+          container.style.left = (e.clientX - startX) + 'px';
+          container.style.top = (e.clientY - startY) + 'px';
           container.style.right = 'auto';
           container.style.bottom = 'auto';
         });
@@ -322,58 +347,40 @@
         document.addEventListener('mouseup', function() {
           if (isDragging) {
             isDragging = false;
-            vscode.postMessage({
-              type: 'move',
-              payload: { x: container.offsetLeft, y: container.offsetTop }
-            });
+            vscode.postMessage({ type: 'move', payload: { x: container.offsetLeft, y: container.offsetTop } });
           }
         });
 
+        // Resize handles
         document.querySelectorAll('.resize-handle').forEach(function(handle) {
           handle.addEventListener('mousedown', function(e) {
             e.stopPropagation();
             var corner = handle.getAttribute('data-corner');
-            var startWidth = container.offsetWidth;
-            var startHeight = container.offsetHeight;
-            var startMouseX = e.clientX;
-            var startMouseY = e.clientY;
+            var sw = container.offsetWidth, sh = container.offsetHeight;
+            var mx = e.clientX, my = e.clientY;
 
-            function onMouseMove(e) {
-              var dx = e.clientX - startMouseX;
-              var dy = e.clientY - startMouseY;
-
-              if (corner.includes('e')) {
-                container.style.width = Math.max(50, startWidth + dx) + 'px';
-              }
-              if (corner.includes('w')) {
-                container.style.width = Math.max(50, startWidth - dx) + 'px';
-              }
-              if (corner.includes('s')) {
-                container.style.height = Math.max(50, startHeight + dy) + 'px';
-              }
-              if (corner.includes('n')) {
-                container.style.height = Math.max(50, startHeight - dy) + 'px';
-              }
+            function move(e) {
+              var dx = e.clientX - mx, dy = e.clientY - my;
+              if (corner.includes('e')) container.style.width = Math.max(50, sw + dx) + 'px';
+              if (corner.includes('w')) container.style.width = Math.max(50, sw - dx) + 'px';
+              if (corner.includes('s')) container.style.height = Math.max(50, sh + dy) + 'px';
+              if (corner.includes('n')) container.style.height = Math.max(50, sh - dy) + 'px';
             }
 
-            function onMouseUp() {
-              document.removeEventListener('mousemove', onMouseMove);
-              document.removeEventListener('mouseup', onMouseUp);
-              vscode.postMessage({
-                type: 'resize',
-                payload: { width: container.offsetWidth, height: container.offsetHeight }
-              });
+            function up() {
+              document.removeEventListener('mousemove', move);
+              document.removeEventListener('mouseup', up);
+              vscode.postMessage({ type: 'resize', payload: { width: container.offsetWidth, height: container.offsetHeight } });
             }
 
-            document.addEventListener('mousemove', onMouseMove);
-            document.addEventListener('mouseup', onMouseUp);
+            document.addEventListener('mousemove', move);
+            document.addEventListener('mouseup', up);
           });
         });
 
+        // Click to play
         container.addEventListener('click', function(e) {
-          if (!e.target.classList.contains('resize-handle')) {
-            executeAction('play');
-          }
+          if (!e.target.classList.contains('resize-handle')) executeAction('play');
         });
       }
 

@@ -2,7 +2,7 @@
   "name": "claude-pet",
   "displayName": "Claude Pet",
   "description": "A virtual pet companion for VSCode - floats over the editor",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "publisher": "claude",
   "repository": "https://github.com/Akira-Greyrat/Claude-pet",
   "engines": {
